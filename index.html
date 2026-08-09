@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Bötaye — Membre</title>
+<meta name="theme-color" content="#1B4332" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <section id="screen-loading" class="screen screen-center">
+    <div class="wheel-loader" aria-hidden="true">
+      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42"/></svg>
+    </div>
+    <p class="loading-label">BÖTAYE</p>
+  </section>
+
+  <section id="screen-login" class="screen screen-center">
+    <div class="card card-form">
+      <p class="eyebrow">BÖTAYE</p>
+      <h1>Espace Membre</h1>
+      <p class="subtitle">Connectez-vous pour suivre votre association.</p>
+      <form id="form-login">
+        <label>Téléphone
+          <input type="tel" name="telephone" required />
+        </label>
+        <label>Mot de passe
+          <input type="password" name="password" required />
+        </label>
+        <button type="submit" class="btn btn-primary">Se connecter</button>
+      </form>
+      <p class="lien-alternatif" id="lien-vers-inscription">Je n'ai pas encore de compte, m'inscrire avec un code</p>
+    </div>
+  </section>
+
+  <section id="screen-inscription" class="screen screen-center hidden">
+    <div class="card card-form">
+      <p class="eyebrow">Nouveau membre</p>
+      <h1>Rejoindre mon association</h1>
+      <p class="subtitle">Saisissez le code reçu de votre bureau, puis vos informations.</p>
+      <form id="form-inscription">
+        <label>Code de l'association
+          <input type="text" name="code" required placeholder="Ex : MBR-XXXXXX" style="text-transform:uppercase;" />
+        </label>
+        <label>Nom complet
+          <input type="text" name="nom" required />
+        </label>
+        <label>Téléphone (identifiant de connexion)
+          <input type="tel" name="telephone" required />
+        </label>
+        <label>Résidence
+          <input type="text" name="residence" required />
+        </label>
+        <label>Mot de passe
+          <input type="password" name="password" required minlength="6" />
+        </label>
+        <p id="inscError" style="color:#c0392b; font-size:13px;"></p>
+        <button type="submit" class="btn btn-primary">Créer mon compte</button>
+      </form>
+      <p class="lien-alternatif" id="lien-retour-login">J'ai déjà un compte, me connecter</p>
+    </div>
+  </section>
+
+  <section id="screen-dashboard" class="screen hidden">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="db-association-nom">—</p>
+        <h1 id="db-membre-nom">—</h1>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+        <button id="btn-changer-mdp" class="btn btn-ghost-sm">Changer mon mot de passe</button>
+        <button id="btn-logout" class="btn btn-ghost">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="cards-grid">
+      <div class="stat-card">
+        <p class="stat-label">Total cotisé</p>
+        <p class="stat-value" id="stat-total-cotise">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Cotisations enregistrées</p>
+        <p class="stat-value" id="stat-nb-cotisations">—</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mes cotisations</h2>
+      <p class="subtitle-sm">Historique de tous vos versements enregistrés par le bureau de votre association.</p>
+      <div id="liste-cotisations" class="entity-list"></div>
+    </div>
+
+  </section>
+
+</div>
+
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div id="modal-content" class="modal-content"></div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
