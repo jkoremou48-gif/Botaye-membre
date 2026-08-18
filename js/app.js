@@ -9,9 +9,9 @@ import { formatDate, formatMontant, notifier } from "./utils.js";
 
 const state = {
   currentUser: null,
-  membreData: null,
   associationId: null,
   cotisations: [],
+  communications: [],
   unsubscribers: [],
 };
 let creationEnCours = false;
@@ -33,8 +33,7 @@ function demarrer() {
     if (user) {
       const userSnap = await getDoc(doc(db, "users", user.uid));
       if (userSnap.exists() && userSnap.data().role === "membre") {
-        state.currentUser = user;
-        state.membreData = userSnap.data();
+        state.currentUser = { uid: user.uid, ...userSnap.data() };
         state.associationId = userSnap.data().association_id;
         await lancerDashboard();
         return;
@@ -119,8 +118,7 @@ document.getElementById("form-inscription").addEventListener("submit", async (e)
     }
 
     notifier("Compte créé avec succès.", "succes");
-    state.currentUser = cred.user;
-    state.membreData = userData;
+    state.currentUser = { uid: cred.user.uid, ...userData };
     state.associationId = associationId;
     creationEnCours = false;
     await lancerDashboard();
@@ -176,7 +174,7 @@ document.getElementById("btn-changer-mdp").addEventListener("click", () => {
       return;
     }
     try {
-      const emailTechnique = telephoneVersEmailTechnique(state.membreData.telephone);
+      const emailTechnique = telephoneVersEmailTechnique(state.currentUser.telephone);
       await changerMotDePasse(emailTechnique, ancien, nouveau);
       notifier("Mot de passe modifié avec succès.", "succes");
       fermerModal();
@@ -188,7 +186,7 @@ document.getElementById("btn-changer-mdp").addEventListener("click", () => {
 
 async function lancerDashboard() {
   showScreen("screen-dashboard");
-  document.getElementById("db-membre-nom").textContent = state.membreData.nom;
+  document.getElementById("db-membre-nom").textContent = state.currentUser.nom;
 
   try {
     const assocSnap = await getDoc(doc(db, "associations", state.associationId));
@@ -204,7 +202,37 @@ async function lancerDashboard() {
       render();
     }
   );
-  state.unsubscribers.push(unsubCotisations);
+  const unsubCommunications = onSnapshot(
+    query(collection(db, "communications"), where("coordination_id", "==", state.currentUser.coordination_id)),
+    (snap) => {
+      state.communications = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((c) => !c.association_id || c.association_id === state.associationId);
+      renderCommunications();
+    }
+  );
+  state.unsubscribers.push(unsubCotisations, unsubCommunications);
+}
+
+function renderCommunications() {
+  const container = document.getElementById("liste-communications");
+  if (!container) return;
+  if (state.communications.length === 0) {
+    container.innerHTML = `<p class="empty-state">Aucun message reçu pour l'instant.</p>`;
+    return;
+  }
+  const tri = [...state.communications].sort((a, b) => (b.date_creation?.toMillis?.() || 0) - (a.date_creation?.toMillis?.() || 0));
+  container.innerHTML = tri.map((c) => `
+    <div class="entity-card">
+      <div class="entity-card-top">
+        <div>
+          <p class="entity-nom">${c.association_id ? "Message pour votre association" : "Message pour toutes les associations"}</p>
+          <p class="entity-sub">${formatDate(c.date_creation)} · ${c.auteur_nom || "Coordination"}</p>
+          <p style="margin-top:6px;">${c.message}</p>
+        </div>
+      </div>
+    </div>
+  `).join("");
 }
 
 function render() {
