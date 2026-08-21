@@ -16,6 +16,8 @@ const state = {
   communications: [],
   recommandations: [],
   votes: {},
+  reunions: [],
+  decisions: [],
   unsubscribers: [],
 };
 let creationEnCours = false;
@@ -268,7 +270,29 @@ async function lancerDashboard() {
       renderRecommandations();
     }
   );
-  state.unsubscribers.push(unsubCommunications, unsubRecommandations);
+  const unsubReunions = onSnapshot(
+    query(
+      collection(db, "meetings"),
+      where("association_id", "==", state.associationId),
+      where("statut", "in", ["convoquee", "tenue", "cloturee"])
+    ),
+    (snap) => {
+      state.reunions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderReunions();
+    }
+  );
+  const unsubDecisions = onSnapshot(
+    query(
+      collection(db, "decisions"),
+      where("association_id", "==", state.associationId),
+      where("statut", "==", "publiee")
+    ),
+    (snap) => {
+      state.decisions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderDecisions();
+    }
+  );
+  state.unsubscribers.push(unsubCommunications, unsubRecommandations, unsubReunions, unsubDecisions);
 }
 
 // ---------- MA FAMILLE ----------
@@ -466,6 +490,125 @@ function ouvrirModalChangerVote(recoId) {
     await enregistrerVote(recoId, "n_approuve_pas");
     fermerModal();
   });
+}
+
+// ---------- RÉUNIONS ----------
+
+const libellesStatutReunion = {
+  convoquee: "Convoquée",
+  tenue: "Tenue",
+  cloturee: "Clôturée",
+};
+
+function renderReunions() {
+  const container = document.getElementById("liste-reunions");
+  if (!container) return;
+  if (state.reunions.length === 0) {
+    container.innerHTML = `<p class="empty-state">Aucune réunion convoquée pour l'instant.</p>`;
+    return;
+  }
+
+  const estChef = state.famille && state.famille.chef_membre_id === state.currentUser.uid;
+  const tri = [...state.reunions].sort((a, b) => (b.date_creation?.toMillis?.() || 0) - (a.date_creation?.toMillis?.() || 0));
+
+  container.innerHTML = tri.map((r) => {
+    const confirmations = r.confirmations_membres || {};
+    const maReponse = state.famille ? confirmations[state.famille.id] : null;
+    const peutConfirmer = estChef && r.statut === "convoquee";
+    return `
+      <div class="entity-card" style="margin-bottom:10px;">
+        <div class="entity-card-top">
+          <div>
+            <p class="entity-nom">${r.titre}</p>
+            <p class="entity-sub">${r.date_reunion || ""} · ${r.lieu || ""}</p>
+          </div>
+          <span class="badge ${["tenue", "cloturee"].includes(r.statut) ? "badge-actif" : "badge-erreur"}">${libellesStatutReunion[r.statut] || r.statut}</span>
+        </div>
+        <p style="margin:8px 0;">${r.ordre_du_jour || ""}</p>
+        ${r.statut === "cloturee" && r.compte_rendu ? `<p class="subtitle-sm" style="font-weight:600;">Compte rendu : ${r.compte_rendu}</p>` : ""}
+        ${maReponse ? `
+          <p class="subtitle-sm" style="font-weight:600;">${maReponse === "present" ? "Vous avez confirmé votre présence." : "Vous avez signalé votre absence."}</p>
+          ${peutConfirmer ? `<button type="button" class="btn btn-ghost-sm btn-changer-confirmation" data-reunion-id="${r.id}" style="margin-top:6px;">Changer ma réponse</button>` : ""}
+        ` : peutConfirmer ? `
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button type="button" class="btn btn-primary btn-sm btn-confirmer-reunion" data-reunion-id="${r.id}" data-reponse="present" style="flex:1;">Je serai présent</button>
+            <button type="button" class="btn btn-sm btn-confirmer-reunion" data-reunion-id="${r.id}" data-reponse="absent" style="flex:1; background:#a94442; color:#fff;">Je ne pourrai pas venir</button>
+          </div>
+        ` : !estChef ? `
+          <p class="subtitle-sm">Seul le chef de famille peut confirmer la présence.</p>
+        ` : ""}
+      </div>
+    `;
+  }).join("");
+
+  container.querySelectorAll(".btn-confirmer-reunion, .btn-changer-confirmation").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const reunionId = btn.dataset.reunionId;
+      const reponse = btn.dataset.reponse;
+      if (reponse) {
+        await enregistrerConfirmationReunion(reunionId, reponse);
+      } else {
+        ouvrirModalChangerConfirmation(reunionId);
+      }
+    });
+  });
+}
+
+async function enregistrerConfirmationReunion(reunionId, reponse) {
+  if (!state.famille) return;
+  try {
+    const reunionRef = doc(db, "meetings", reunionId);
+    const snap = await getDoc(reunionRef);
+    const confirmations = (snap.exists() && snap.data().confirmations_membres) || {};
+    confirmations[state.famille.id] = reponse;
+    await updateDoc(reunionRef, { confirmations_membres: confirmations });
+    notifier("Votre réponse a été enregistrée.", "succes");
+  } catch (err) {
+    notifier("Erreur : " + err.message, "erreur");
+  }
+}
+
+function ouvrirModalChangerConfirmation(reunionId) {
+  ouvrirModal(`
+    <h2>Changer ma réponse</h2>
+    <div class="modal-actions" style="flex-direction:column; gap:8px;">
+      <button type="button" class="btn btn-primary" id="btn-confirmer-present" style="width:100%;">Je serai présent</button>
+      <button type="button" class="btn" id="btn-confirmer-absent" style="width:100%; background:#a94442; color:#fff;">Je ne pourrai pas venir</button>
+      <button type="button" class="btn btn-ghost-sm" id="modal-annuler" style="width:100%;">Annuler</button>
+    </div>
+  `);
+  document.getElementById("modal-annuler").addEventListener("click", fermerModal);
+  document.getElementById("btn-confirmer-present").addEventListener("click", async () => {
+    await enregistrerConfirmationReunion(reunionId, "present");
+    fermerModal();
+  });
+  document.getElementById("btn-confirmer-absent").addEventListener("click", async () => {
+    await enregistrerConfirmationReunion(reunionId, "absent");
+    fermerModal();
+  });
+}
+
+// ---------- DÉCISIONS OFFICIELLES ----------
+
+function renderDecisions() {
+  const container = document.getElementById("liste-decisions");
+  if (!container) return;
+  if (state.decisions.length === 0) {
+    container.innerHTML = `<p class="empty-state">Aucune décision publiée pour l'instant.</p>`;
+    return;
+  }
+  const tri = [...state.decisions].sort((a, b) => (b.date_publication?.toMillis?.() || 0) - (a.date_publication?.toMillis?.() || 0));
+  container.innerHTML = tri.map((d) => `
+    <div class="entity-card">
+      <div class="entity-card-top">
+        <div>
+          <p class="entity-nom">${d.titre} <span style="font-weight:400; color:#777;">(${d.numero || ""})</span></p>
+          <p class="entity-sub">${formatDate(d.date_publication)}</p>
+          <p style="margin-top:6px;">${d.contenu || ""}</p>
+        </div>
+      </div>
+    </div>
+  `).join("");
 }
 
 // ---------- ONGLETS ----------
