@@ -259,28 +259,31 @@ async function lancerDashboard() {
       renderCommunications();
     }
   );
+
+  // ⚠️ Corrigé : plus de where("statut","in",[...]) combiné à where("association_id","==",...)
+  // (nécessitait un index composite jamais créé, ce qui bloquait silencieusement l'affichage).
+  // On filtre désormais le statut côté JavaScript, après réception.
   const unsubRecommandations = onSnapshot(
-    query(
-      collection(db, "recommandations"),
-      where("association_id", "==", state.associationId),
-      where("statut", "in", ["publiee_membres", "cloturee"])
-    ),
+    query(collection(db, "recommandations"), where("association_id", "==", state.associationId)),
     (snap) => {
-      state.recommandations = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      state.recommandations = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((r) => ["publiee_membres", "cloturee"].includes(r.statut));
       renderRecommandations();
     }
   );
+
+  // ⚠️ Même correction pour les réunions.
   const unsubReunions = onSnapshot(
-    query(
-      collection(db, "meetings"),
-      where("association_id", "==", state.associationId),
-      where("statut", "in", ["convoquee", "tenue", "cloturee"])
-    ),
+    query(collection(db, "meetings"), where("association_id", "==", state.associationId)),
     (snap) => {
-      state.reunions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      state.reunions = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((r) => ["convoquee", "tenue", "cloturee"].includes(r.statut));
       renderReunions();
     }
   );
+
   const unsubDecisions = onSnapshot(
     query(
       collection(db, "decisions"),
